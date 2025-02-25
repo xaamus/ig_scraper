@@ -2,7 +2,7 @@ import json
 import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.service import Service
 
 def load_cookies(driver, cookies_file, url):
     """Ładuje ciasteczka z pliku JSON i odświeża stronę"""
@@ -13,6 +13,9 @@ def load_cookies(driver, cookies_file, url):
         cookies = json.load(file)
 
     for cookie in cookies:
+        if "sameSite" in cookie and cookie["sameSite"] not in ["Strict", "Lax", "None"]:
+            del cookie["sameSite"]  # Usunięcie błędnego klucza
+        
         driver.add_cookie(cookie)  # Dodaj ciasteczka
 
     driver.refresh()  # Odświeżenie strony po dodaniu ciasteczek
@@ -34,39 +37,43 @@ def scroll_and_scrape(driver, url, output_file):
             for elem in elements:
                 link = elem.get_attribute("href")  # Pobranie atrybutu href
                 
-                # 🔹 Zapisuj tylko linki zawierające "/p/"
+                # Zapisuj tylko linki zawierające "/p/"
                 if link and "/p/" in link and link not in collected_links:
                     collected_links.add(link)
                     file.write(link + "\n")
                     count += 1
                     print(f"Zapisano {count} linków: {link}")
 
-            # 🔹 Przewijanie do dołu strony
+            # Przewijanie do dołu strony
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(10)  # Czekamy na załadowanie nowych treści
 
-            # 🔹 Sprawdzamy, czy pojawiło się więcej treści
+            # Sprawdzamy, czy pojawiło się więcej treści
             new_height = driver.execute_script("return document.body.scrollHeight")
             if new_height == last_height:  # Jeśli wysokość się nie zmieniła, kończymy
                 break
             last_height = new_height  # Aktualizacja wysokości
 
-    print(f"✅ Znaleziono i zapisano {count} unikalnych linków zawierających '/p/'. Wynik w {output_file}")
+    print(f"Znaleziono i zapisano {count} unikalnych linków zawierających '/p/'. Wynik w {output_file}")
 
 if __name__ == "__main__":
+    webdriver_path = "./msedgedriver.exe"
+    service = Service(webdriver_path)
     options = webdriver.EdgeOptions()
-    options.add_argument("--headless")  # Praca w tle (usuń, jeśli chcesz widzieć okno)
-    driver = webdriver.Edge(options=options)
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--log-level=3")
+    driver = webdriver.Edge(service=service, options=options)
 
     try:
-        # 🔹 Import ciasteczek
-        cookies_file = r"C:\Users\kacpe\Downloads\cookies.json"  # Plik z ciasteczkami
+        # Import ciasteczek
+        cookies_file = "./cookies.json"  # Plik z ciasteczkami
         site_url = "https://www.instagram.com"  # Adres strony, gdzie trzeba dodać ciasteczka
         load_cookies(driver, cookies_file, site_url)
 
-        # 🔹 Scrapowanie linków
+        # Scrapowanie linków
         data_url = "https://www.instagram.com/xaamuss/saved/all-posts/"  # Strona z danymi
-        output_file = r"C:\Users\kacpe\Downloads\links.txt"
+        output_file = "./links.txt"
 
         scroll_and_scrape(driver, data_url, output_file)
 
